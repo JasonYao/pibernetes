@@ -19,5 +19,5 @@ sudo ./setup.sh
 ### Master Node Only
 - Clone this repository and run this after setup:
 ```bash
-sudo ./master-node-setup.sh
+sudo ./master-setup.sh
 ```
