@@ -128,3 +128,40 @@ if [[ $(sudo grep "cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory" /b
 else
     success "Permissions: Cgroup permissions have already been updated"
 fi
+
+# Installs kubelet API firewall rule (required for all master/worker nodes)
+all_ufw_apps="$(sudo ufw app list)"
+ufw_pibernetes_config_file="/etc/ufw/applications.d/pibernetes"
+
+function add_ufw_pibernetes_inbound_application() {
+    full_application_name=$1
+    description=$2
+    ports=$3
+
+    if [[ $(echo "${all_ufw_apps}" | grep "${full_application_name}") == "" ]]; then
+        info "UFW: Firewall rule not added for ${full_application_name}, adding now"
+        if {
+            echo "[${full_application_name}]"
+            echo "title=${full_application_name}"
+            echo "description=${description}"
+            echo "ports=${ports}"
+            printf "\n\n"
+        } | sudo tee -a "${ufw_pibernetes_config_file}" > /dev/null \
+        && sudo ufw app update "${full_application_name}" \
+        && sudo ufw allow in "${full_application_name}" > /dev/null; then
+            success "UFW: Firewall rule for ${full_application_name} is now added"
+        else
+            fail "UFW: Failed to add in firewall rule for ${full_application_name}"
+        fi
+    else
+        success "UFW: Firewall rule for ${full_application_name} already exists"
+    fi
+}
+
+add_ufw_pibernetes_inbound_application "Pibernetes Kubelet API" "Used by Self, Control plane" "10250/tcp"
+
+if echo "y" | sudo ufw enable > /dev/null ; then
+    success "UFW: Successfully restarted firewall"
+else
+    fail "UFW: Failed to restart firewall"
+fi
