@@ -1,0 +1,18 @@
+# General build settings
+sudo: false
+dist: xenial
+
+# Notification settings
+notifications:
+  email:
+    recipients:
+      - Hello@JasonYao.com
+    # Only sends an email when the build status changes
+    on_success: change
+    on_failure: change
+
+#before_script:
+#  - bin/install_dependencies
+
+script:
+  - bin/lint
