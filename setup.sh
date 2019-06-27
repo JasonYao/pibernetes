@@ -182,6 +182,7 @@ function add_ufw_pibernetes_inbound_application() {
 }
 
 add_ufw_pibernetes_inbound_application "Pibernetes Kubelet API" "Used by Self, Control plane" "10250/tcp"
+add_ufw_pibernetes_inbound_application "Pibernetes Network Addon- Flannel" "Networking addon uses Flannel, for simple bare-bones networking" "8472/udp|8285/udp"
 
 if echo "y" | sudo ufw enable > /dev/null ; then
     success "UFW: Successfully restarted firewall"
