@@ -130,7 +130,7 @@ else
     success "Kube Admin: Already installed kubeadm"
 fi
 
-if [[ $(sudo grep "cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory" /boot/cmdline.txt) == "" ]]; then
+if [[ $(sudo grep "cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory swapaccount=1" /boot/cmdline.txt) == "" ]]; then
     info "Permissions: Cgroup permissions not yet updated, updating now"
     if sudo cp /boot/cmdline.txt /boot/cmdline.txt.backup ; then
         success "Permissions: Successfully backed up old cmdline boot file"
