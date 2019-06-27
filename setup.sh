@@ -58,6 +58,29 @@ else
     success "Docker: Already installed docker"
 fi
 
+if [[ -f /etc/docker/daemon.json ]]; then
+    success "Docker: Daemon configuration file already setup"
+else
+    info "Docker: Daemon configuration file not setup yet, setting up now"
+    if {
+        echo "{"
+        echo "  \"exec-opts\": [\"native.cgroupdriver=systemd\"],"
+        echo "  \"log-driver\": \"json-file\","
+        echo "  \"log-opts\": {"
+        echo "    \"max-size\": \"100m\""
+        echo "  },"
+        echo "  \"storage-driver\": \"overlay2\""
+        echo "}"
+    } | sudo tee /etc/docker/daemon.json > /dev/null \
+    && sudo mkdir -p /etc/systemd/system/docker.service.d \
+    && sudo systemctl daemon-reload \
+    && sudo systemctl restart docker; then
+        success "Docker: Daemon configuration file successfully setup"
+    else
+        fail "Docker: Failed to setup daemon configuration file"
+    fi
+fi
+
 # Swap file
 if [[ $(sudo swapon |  awk '{print $3}' | sed -n 2p) == "" ]]; then
     success "Swap: Swapfiles are already disabled"
@@ -116,7 +139,7 @@ if [[ $(sudo grep "cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory" /b
     fi
 
     old_boot_file="$(head -n1 /boot/cmdline.txt)"
-    if echo "${old_boot_file} cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory" | sudo tee /boot/cmdline.txt &>/dev/null; then
+    if echo "${old_boot_file} cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory swapaccount=1" | sudo tee /boot/cmdline.txt &>/dev/null; then
         success "Permissions: Successfully updated cgroup permissions in boot file"
     else
         fail "Permissions: Failed to update cgroup permissions in boot file"
