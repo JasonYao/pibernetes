@@ -35,32 +35,7 @@ function fail () {
 
 current_ip_address="$(hostname -I | awk '{ print $1 }')"
 user="jason"
-
-# Control plane setup
-if [[ -f /etc/kubernetes/admin.conf ]]; then
-    success "Kubeadm Initialization: Master node control-plane is already initialized"
-else
-    info "Kubeadm Initialization: Master node control-plane has not been initialized yet, initializing now"
-    if sudo kubeadm init --apiserver-advertise-address="${current_ip_address}" ; then
-        success "Kubeadm Initialization: Successfully initialized kubernetes control-plane"
-    else
-        fail "Kubeadm Initialization: Failed to initialize kubernetes control-plane"
-    fi
-fi
-
-# Admin setup
-if [[ -d /home/${user}/.kube ]]; then
-    success "Kubeadm Credentials: Administrative credentials are already setup"
-else
-    info "Kubeadm Credentials: Administrative credentials have not been setup, setting up now"
-    if mkdir -p /home/${user}/.kube \
-        && sudo cp -i /etc/kubernetes/admin.conf /home/${user}/.kube/config \
-        && sudo chown -R "$(sudo -u ${user} id -u)":"$(sudo -u ${user} id -g)" /home/${user}/.kube ; then
-        success "Kubeadm Credentials: Successfully setup admin credentials for ${user}"
-    else
-        fail "Kubeadm Credentials: Failed to setup admin credentials for ${user}"
-    fi
-fi
+flannel_pod_network_cidr="10.244.0.0/16"
 
 # Installs all firewall rules required for the master node
 # Values from https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#control-plane-node-s
@@ -101,4 +76,55 @@ if echo "y" | sudo ufw enable > /dev/null ; then
     success "UFW: Successfully restarted firewall"
 else
     fail "UFW: Failed to restart firewall"
+fi
+
+# Control plane setup
+if [[ -f /etc/kubernetes/admin.conf ]]; then
+    success "Kubeadm Initialization: Master node control-plane is already initialized"
+else
+    info "Kubeadm Initialization: Master node control-plane has not been initialized yet, initializing now"
+    warn "Kubeadm Initialization: Master node will initialize with Flannel as the networking add-on. For more information, see https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#tabs-pod-install-6"
+    if sudo kubeadm init --apiserver-advertise-address="${current_ip_address} --pod-network-cidr=${flannel_pod_network_cidr}" ; then
+        success "Kubeadm Initialization: Successfully initialized kubernetes control-plane"
+    else
+        fail "Kubeadm Initialization: Failed to initialize kubernetes control-plane"
+    fi
+fi
+
+# Networking setup
+if [[ $(grep "1" /proc/sys/net/bridge/bridge-nf-call-iptables) == ""  ]]; then
+    info "Kubernetes Networking: IPv4 bridge traffic to iptables’ chains is not setup yet, setting up now"
+    if sudo sysctl net.bridge.bridge-nf-call-iptables=1 ; then
+        success "Kubernetes Networking: IPv4 bridge traffic to iptables’ chains is now setup"
+    else
+        fail "Kubernetes Networking: Failed to setup IPv4 bridge traffic to iptables’ chains"
+    fi
+else
+    success "Kubernetes Networking: IPv4 bridge traffic to iptables’ chains is already setup"
+fi
+
+# Admin setup
+if [[ -d /home/${user}/.kube ]]; then
+    success "Kubeadm Credentials: Administrative credentials are already setup"
+else
+    info "Kubeadm Credentials: Administrative credentials have not been setup, setting up now"
+    if mkdir -p /home/${user}/.kube \
+        && sudo cp -i /etc/kubernetes/admin.conf /home/${user}/.kube/config \
+        && sudo chown -R "$(sudo -u ${user} id -u)":"$(sudo -u ${user} id -g)" /home/${user}/.kube ; then
+        success "Kubeadm Credentials: Successfully setup admin credentials for ${user}"
+    else
+        fail "Kubeadm Credentials: Failed to setup admin credentials for ${user}"
+    fi
+fi
+
+# Networking setup (continued)
+if [[ $(kubectl --namespace kube-system get pods | grep "flannel" | grep "Running") == "" ]]; then
+    info "Kubernetes Networking: Flannel networking add-on is not running, setting up now"
+    if kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml; then
+        success "Kubernetes Networking: Flannel networking add-on is now running"
+    else
+        fail "Kubernetes Networking: Failed to setup Flannel networking add-on"
+    fi
+else
+    success "Kubernetes Networking: Flannel networking add-on is already up and running correctly"
 fi
