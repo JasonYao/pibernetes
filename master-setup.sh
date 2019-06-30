@@ -42,6 +42,9 @@ flannel_pod_network_cidr="10.244.0.0/16"
 all_ufw_apps="$(sudo ufw app list)"
 ufw_pibernetes_config_file="/etc/ufw/applications.d/pibernetes"
 
+# Port 30,000 is already in use, so we reset the range on master
+kubernetes_available_node_port_range="30001-32767"
+
 function add_ufw_pibernetes_inbound_application() {
     full_application_name=$1
     description=$2
@@ -84,7 +87,12 @@ if [[ -f /etc/kubernetes/admin.conf ]]; then
 else
     info "Kubeadm Initialization: Master node control-plane has not been initialized yet, initializing now"
     warn "Kubeadm Initialization: Master node will initialize with Flannel as the networking add-on. For more information, see https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#tabs-pod-install-6"
-    if sudo kubeadm init --apiserver-advertise-address="${current_ip_address} --pod-network-cidr=${flannel_pod_network_cidr}" ; then
+    if sudo kubeadm init --apiserver-advertise-address="${current_ip_address}" \
+        # For Flannel networking
+        --pod-network-cidr="${flannel_pod_network_cidr}" \
+        # For setting up available node port range on workers
+        --service-node-port-range="${kubernetes_available_node_port_range}" \
+       ; then
         success "Kubeadm Initialization: Successfully initialized kubernetes control-plane"
     else
         fail "Kubeadm Initialization: Failed to initialize kubernetes control-plane"
@@ -128,3 +136,4 @@ if [[ $(kubectl --namespace kube-system get pods | grep "flannel" | grep "Runnin
 else
     success "Kubernetes Networking: Flannel networking add-on is already up and running correctly"
 fi
+

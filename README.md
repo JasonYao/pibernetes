@@ -21,3 +21,9 @@ sudo ./setup.sh
 ```bash
 sudo ./master-setup.sh
 ```
+
+### Worker Node Only
+- Clone this repository and run this after setup:
+```bash
+sudo ./worker-setup.sh
+```
