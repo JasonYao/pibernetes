@@ -34,7 +34,7 @@ function fail () {
 }
 
 # Port 30,000 is already in use, so we reset the node port range available
-kubernetes_available_node_port_range="30001-32767"
+kubernetes_available_node_port_range="30001:32767"
 
 # Installs all firewall rules required for the master node
 # Values from https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#control-plane-node-s
@@ -66,7 +66,7 @@ function add_ufw_pibernetes_inbound_application() {
     fi
 }
 
-add_ufw_pibernetes_inbound_application "Pibernetes Kubernetes NodePort Services" "Used by All, for exposing services externally from the cluster" "30001:32767/tcp"
+add_ufw_pibernetes_inbound_application "Pibernetes Kubernetes NodePort Services" "Used by All, for exposing services externally from the cluster" "${kubernetes_available_node_port_range}/tcp"
 
 if echo "y" | sudo ufw enable > /dev/null ; then
     success "UFW: Successfully restarted firewall"

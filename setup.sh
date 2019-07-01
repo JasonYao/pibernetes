@@ -81,7 +81,7 @@ else
     fi
 fi
 
-# Swap file
+# Disables swap file
 if [[ $(sudo swapon |  awk '{print $3}' | sed -n 2p) == "" ]]; then
     success "Swap: Swapfiles are already disabled"
 else
@@ -183,9 +183,100 @@ function add_ufw_pibernetes_inbound_application() {
 
 add_ufw_pibernetes_inbound_application "Pibernetes Kubelet API" "Used by Self, Control plane" "10250/tcp"
 add_ufw_pibernetes_inbound_application "Pibernetes Network Addon- Flannel" "Networking addon uses Flannel, for simple bare-bones networking" "8472/udp|8285/udp"
+add_ufw_pibernetes_inbound_application "Pibernetes Health Metrics- Node Exporter" "Port to enable retrieving the health of nodes" "9100/tcp"
 
 if echo "y" | sudo ufw enable > /dev/null ; then
     success "UFW: Successfully restarted firewall"
 else
     fail "UFW: Failed to restart firewall"
+fi
+
+# Sets up node exporter on the node to expose metrics for prometheus
+metrics_directory="/home/${user}/.pibernetes_metrics"
+node_exporter_tarball="${metrics_directory}/node_exporter.tar.gz"
+node_exporter_version="0.18.1"
+
+if [[ $(command -v node_exporter) == "" ]]; then
+    info "Node Exporter | Download: No node exporter found, getting version: ${node_exporter_version}"
+    mkdir -p ${metrics_directory}
+
+    # Downloads node exporter
+    if curl --show-error --location https://github.com/prometheus/node_exporter/releases/download/v${node_exporter_version}/node_exporter-${node_exporter_version}.linux-armv7.tar.gz --output "${node_exporter_tarball}" ; then
+        success "Node Exporter | Download: Downloaded node exporter"
+    else
+        fail "Node Exporter | Download: Failed to download node exporter"
+    fi
+
+    # Extracts the node exporter
+    if sudo tar -xvf "${node_exporter_tarball}" -C /usr/local/bin/ --strip-components=1 ; then
+        success "Node Exporter | Extraction: Extracted node exporter"
+    else
+        fail "Node Exporter | Extraction: Failed to extract node exporter from tarball"
+    fi
+
+    if rm -rf ${metrics_directory} ; then
+        success "Node Exporter | Download: Cleaned up node exporter download"
+    else
+        # We don't want to fail if cleanup fails
+        warn "Node Exporter | Download: Failed to clean up node exporter download, please remove yourself later: ${metrics_directory}"
+    fi
+else
+    success "Node Exporter | Download: Node exporter already downloaded"
+fi
+
+# Makes a node exporter service
+node_exporter_service_name="pibernetes-node-exporter"
+node_exporter_service_file_name="${node_exporter_service_name}.service"
+node_exporter_service_path="/etc/systemd/system/${node_exporter_service_file_name}"
+if [[ $(systemctl list-unit-files | grep "${node_exporter_service_file_name}") == "" ]]; then
+    info "Node Exporter | Service: Could not find the node exporter service, creating now"
+    if {
+        echo "[Unit]"
+        printf "Description=Exports node health metrics for prometheus to pick up\n\n"
+        echo "[Service]"
+        echo "Type=simple"
+        echo "Restart=always"
+        echo "RestartSec=1"
+        echo "TimeoutStartSec=0"
+        printf "ExecStart=/usr/local/bin/node_exporter\n\n"
+        echo "[Install]"
+        echo "WantedBy=multi-user.target"
+    } | sudo tee "${node_exporter_service_path}" >/dev/null; then
+        success "Node Exporter | Service: Successfully created node exporter service configuration"
+    else
+        fail "Node Exporter | Service: Failed to create node exporter service configuration"
+    fi
+
+    # Reloads the service list
+    if sudo systemctl daemon-reload ; then
+        success "Node Exporter | Service: Successfully reloaded service definitions"
+    else
+        fail "Node Exporter | Service: Failed to reload service definitions"
+    fi
+else
+    success "Node Exporter | Service: Already created the node exporter service"
+fi
+
+# Makes sure that the node exporter service will restart upon reboot
+if [[ $(systemctl list-unit-files --state=enabled | grep "${node_exporter_service_file_name}") == "" ]]; then
+    info "Node Exporter | Service: Node exporter service is not set to restart upon reboots, setting up now"
+    if sudo systemctl enable "${node_exporter_service_name}"; then
+        success "Node Exporter | Service: Node exporter service is now set to self-start on boot"
+    else
+        fail "Node Exporter | Service: Failed to make the node exporter service self-start on boot"
+    fi
+else
+    success "Node Exporter | Service: Node exporter service is already setup to self-start on boot"
+fi
+
+# Makes sure that the node exporter is currently running
+if [[ $(systemctl | grep pibernetes | grep running) == "" ]]; then
+    info "Node Exporter | Service: Node exporter is not currently running, starting now"
+    if sudo systemctl start "${node_exporter_service_name}" ; then
+        success "Node Exporter | Service: Successfully started node exporter service"
+    else
+        fail "Node Exporter | Service: Failed to start node exporter service"
+    fi
+else
+    success "Node Exporter | Service: Node exporter service already started"
 fi

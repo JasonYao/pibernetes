@@ -87,12 +87,10 @@ if [[ -f /etc/kubernetes/admin.conf ]]; then
 else
     info "Kubeadm Initialization: Master node control-plane has not been initialized yet, initializing now"
     warn "Kubeadm Initialization: Master node will initialize with Flannel as the networking add-on. For more information, see https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#tabs-pod-install-6"
-    if sudo kubeadm init --apiserver-advertise-address="${current_ip_address}" \
-        # For Flannel networking
-        --pod-network-cidr="${flannel_pod_network_cidr}" \
-        # For setting up available node port range on workers
-        --service-node-port-range="${kubernetes_available_node_port_range}" \
-       ; then
+
+    # The pod-network-cidr is required for Flannel networking
+    # The service-node-port-range explicitly being set is because the default contains a port already in use (30000)
+    if sudo kubeadm init --apiserver-advertise-address="${current_ip_address}" --pod-network-cidr="${flannel_pod_network_cidr}" --service-node-port-range="${kubernetes_available_node_port_range}"; then
         success "Kubeadm Initialization: Successfully initialized kubernetes control-plane"
     else
         fail "Kubeadm Initialization: Failed to initialize kubernetes control-plane"
