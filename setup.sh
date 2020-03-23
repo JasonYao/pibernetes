@@ -280,3 +280,19 @@ if [[ $(systemctl | grep pibernetes | grep running) == "" ]]; then
 else
     success "Node Exporter | Service: Node exporter service already started"
 fi
+
+# Sets up cgroup stats retrieval. For more information, see https://stackoverflow.com/a/46753640
+dropin_file="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+if [[ $(sudo grep "runtime-cgroups" "${dropin_file}") == "" ]]; then
+    info "cgroup stats setup: We haven't set the cgroup stat retrieval yet, setting now"
+    if sudo perl -pi -e 's/(Environment="KUBELET_CONFIG_ARGS=--config=\/var\/lib\/kubelet\/config.yaml")/$1\nEnvironment="KUBELET_EXTRA_ARGS=--runtime-cgroups=\/systemd\/system.slice --kubelet-cgroups=\/systemd\/system.slice"/' "${dropin_file}" ; then
+        success "cgroup stats setup: Successfully setup cgroup stats access"
+        sudo systemctl restart kubelet
+        sudo systemctl restart docker
+        sudo systemctl daemon-reload
+    else
+        fail "cgroup stats setup: Failed to setup cgroup stats access"
+    fi
+else
+    success "cgroup stats setup: Already setup cgroup stats retrieval"
+fi
