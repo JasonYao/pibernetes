@@ -228,6 +228,7 @@ fi
 node_exporter_service_name="pibernetes-node-exporter"
 node_exporter_service_file_name="${node_exporter_service_name}.service"
 node_exporter_service_path="/etc/systemd/system/${node_exporter_service_file_name}"
+textfile_metrics_directory="/metrics"
 if [[ $(systemctl list-unit-files | grep "${node_exporter_service_file_name}") == "" ]]; then
     info "Node Exporter | Service: Could not find the node exporter service, creating now"
     if {
@@ -238,7 +239,7 @@ if [[ $(systemctl list-unit-files | grep "${node_exporter_service_file_name}") =
         echo "Restart=always"
         echo "RestartSec=1"
         echo "TimeoutStartSec=0"
-        printf "ExecStart=/usr/local/bin/node_exporter\n\n"
+        printf "ExecStart=/usr/local/bin/node_exporter --collector.textfile.directory %s\n\n" "${textfile_metrics_directory}"
         echo "[Install]"
         echo "WantedBy=multi-user.target"
     } | sudo tee "${node_exporter_service_path}" >/dev/null; then
@@ -268,6 +269,22 @@ if [[ $(systemctl list-unit-files --state=enabled | grep "${node_exporter_servic
 else
     success "Node Exporter | Service: Node exporter service is already setup to self-start on boot"
 fi
+
+# Makes sure that we're exposing additional textfile-based metrics (E.g. SoC temperature)
+sudo mkdir -p "${textfile_metrics_directory}"
+
+# Enables exporting the raspberry pi's temperature
+# via node exporter on a 10-second granularity. See here
+# for a breakdown:
+#   - Command generation: https://github.com/JasonYao/pibernetes/issues/5#issuecomment-605789525
+#   - Putting it together: https://github.com/JasonYao/pibernetes/issues/5#issuecomment-605801222
+grep 'thermal_zone0' /etc/crontab > /dev/null || printf '* *'"\t"'* * *'"\t"'root'"\t"'( %s )'"\n"'' 'tr -d '"'\n'"' < /sys/class/thermal/thermal_zone0/temp | xargs -0 printf "3k \%i 1000 /n" | dc | xargs -0 printf "core_temp_celsius \%.3f\n" | sudo tee /metrics/soc_temp.prom.$$ > /dev/null && sudo mv /metrics/soc_temp.prom.$$ /metrics/soc_temp.prom' | sudo tee -a /etc/crontab
+grep 'sleep 10' /etc/crontab > /dev/null || printf '* *'"\t"'* * *'"\t"'root'"\t"'( %s )'"\n"'' 'sleep 10 ; tr -d '"'\n'"' < /sys/class/thermal/thermal_zone0/temp | xargs -0 printf "3k \%i 1000 /n" | dc | xargs -0 printf "core_temp_celsius \%.3f\n" | sudo tee /metrics/soc_temp.prom.$$ > /dev/null && sudo mv /metrics/soc_temp.prom.$$ /metrics/soc_temp.prom' | sudo tee -a /etc/crontab
+grep 'sleep 20' /etc/crontab > /dev/null || printf '* *'"\t"'* * *'"\t"'root'"\t"'( %s )'"\n"'' 'sleep 20 ; tr -d '"'\n'"' < /sys/class/thermal/thermal_zone0/temp | xargs -0 printf "3k \%i 1000 /n" | dc | xargs -0 printf "core_temp_celsius \%.3f\n" | sudo tee /metrics/soc_temp.prom.$$ > /dev/null && sudo mv /metrics/soc_temp.prom.$$ /metrics/soc_temp.prom' | sudo tee -a /etc/crontab
+grep 'sleep 30' /etc/crontab > /dev/null || printf '* *'"\t"'* * *'"\t"'root'"\t"'( %s )'"\n"'' 'sleep 30 ; tr -d '"'\n'"' < /sys/class/thermal/thermal_zone0/temp | xargs -0 printf "3k \%i 1000 /n" | dc | xargs -0 printf "core_temp_celsius \%.3f\n" | sudo tee /metrics/soc_temp.prom.$$ > /dev/null && sudo mv /metrics/soc_temp.prom.$$ /metrics/soc_temp.prom' | sudo tee -a /etc/crontab
+grep 'sleep 40' /etc/crontab > /dev/null || printf '* *'"\t"'* * *'"\t"'root'"\t"'( %s )'"\n"'' 'sleep 40 ; tr -d '"'\n'"' < /sys/class/thermal/thermal_zone0/temp | xargs -0 printf "3k \%i 1000 /n" | dc | xargs -0 printf "core_temp_celsius \%.3f\n" | sudo tee /metrics/soc_temp.prom.$$ > /dev/null && sudo mv /metrics/soc_temp.prom.$$ /metrics/soc_temp.prom' | sudo tee -a /etc/crontab
+grep 'sleep 50' /etc/crontab > /dev/null || printf '* *'"\t"'* * *'"\t"'root'"\t"'( %s )'"\n"'' 'sleep 50 ; tr -d '"'\n'"' < /sys/class/thermal/thermal_zone0/temp | xargs -0 printf "3k \%i 1000 /n" | dc | xargs -0 printf "core_temp_celsius \%.3f\n" | sudo tee /metrics/soc_temp.prom.$$ > /dev/null && sudo mv /metrics/soc_temp.prom.$$ /metrics/soc_temp.prom' | sudo tee -a /etc/crontab
+success "Node Exporter | Additional Metrics: Additional metrics via textfile support is now setup"
 
 # Makes sure that the node exporter is currently running
 if [[ $(systemctl | grep pibernetes | grep running) == "" ]]; then
